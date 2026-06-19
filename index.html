@@ -1,0 +1,881 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Dashboard SG-SST Colombia</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+  :root {
+    --bg: #f7f8fa;
+    --surface: #ffffff;
+    --surface2: #f0f2f5;
+    --border: rgba(0,0,0,0.08);
+    --text: #1a1a2e;
+    --text2: #5a6170;
+    --text3: #9aa0ac;
+    --radius: 12px;
+    --radius-sm: 8px;
+    --shadow: 0 1px 3px rgba(0,0,0,0.06), 0 4px 16px rgba(0,0,0,0.04);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif; background: var(--bg); color: var(--text); font-size: 14px; }
+
+  /* TOPBAR */
+  .topbar { background: linear-gradient(135deg, #1F3864 0%, #2E75B6 100%); padding: 0 2rem; display: flex; align-items: center; justify-content: space-between; height: 64px; position: sticky; top: 0; z-index: 100; }
+  .topbar-left { display: flex; align-items: center; gap: 14px; }
+  .topbar-icon { width: 36px; height: 36px; background: rgba(255,255,255,0.15); border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 18px; }
+  .topbar h1 { font-size: 16px; font-weight: 600; color: #fff; letter-spacing: .2px; }
+  .topbar-sub { font-size: 11px; color: rgba(255,255,255,0.65); margin-top: 1px; }
+  .topbar-right { display: flex; align-items: center; gap: 10px; }
+  .badge { font-size: 10px; background: rgba(255,255,255,0.15); color: rgba(255,255,255,0.9); padding: 3px 10px; border-radius: 20px; border: 1px solid rgba(255,255,255,0.2); }
+  .upload-btn { font-size: 12px; background: rgba(255,255,255,0.2); color: #fff; border: 1px solid rgba(255,255,255,0.3); border-radius: 8px; padding: 6px 14px; cursor: pointer; display: flex; align-items: center; gap: 6px; transition: background .15s; }
+  .upload-btn:hover { background: rgba(255,255,255,0.3); }
+  .upload-btn svg { width: 14px; height: 14px; }
+  #file-input { display: none; }
+
+  /* UPLOAD BANNER */
+  .upload-banner { background: #fff8e1; border-bottom: 1px solid #ffe082; padding: 10px 2rem; display: flex; align-items: center; gap: 10px; font-size: 12px; color: #6d4c00; }
+  .upload-banner.hidden { display: none; }
+  .upload-banner strong { font-weight: 600; }
+  .drop-zone { border: 2px dashed #2E75B6; border-radius: var(--radius); padding: 2rem; text-align: center; color: var(--text2); font-size: 13px; cursor: pointer; transition: all .15s; margin: 1.5rem 2rem; background: #f0f5ff; }
+  .drop-zone:hover, .drop-zone.drag-over { background: #dbeafe; border-color: #1F3864; }
+  .drop-zone.hidden { display: none; }
+
+  /* MAIN */
+  .main { padding: 1.5rem 2rem 3rem; max-width: 1400px; margin: 0 auto; }
+
+  /* SEMÁFORO */
+  .semaforo { display: grid; grid-template-columns: repeat(6,1fr); gap: 10px; margin-bottom: 1.5rem; }
+  .sem { border-radius: var(--radius-sm); padding: .75rem 1rem; text-align: center; background: var(--surface); border: 1px solid var(--border); }
+  .sem-label { font-size: 10px; color: var(--text2); margin-bottom: 4px; text-transform: uppercase; letter-spacing: .5px; }
+  .sem-val { font-size: 14px; font-weight: 700; }
+  .sem-dot { width: 8px; height: 8px; border-radius: 50%; margin: 0 auto 6px; }
+  .red { color: #a32d2d; } .red .sem-dot { background: #E24B4A; }
+  .amber { color: #854f0b; } .amber .sem-dot { background: #EF9F27; }
+  .green { color: #3b6d11; } .green .sem-dot { background: #639922; }
+
+  /* SECTION */
+  .section-title { font-size: 11px; font-weight: 600; letter-spacing: .8px; text-transform: uppercase; color: var(--text3); margin: 1.75rem 0 .75rem; display: flex; align-items: center; gap: 8px; }
+  .section-title::after { content: ''; flex: 1; height: 1px; background: var(--border); }
+
+  /* KPI CARDS */
+  .kpi-grid { display: grid; grid-template-columns: repeat(6,1fr); gap: 10px; margin-bottom: 1.25rem; }
+  .kpi { background: var(--surface); border-radius: var(--radius-sm); padding: 1rem 1.1rem; border: 1px solid var(--border); box-shadow: var(--shadow); position: relative; overflow: hidden; }
+  .kpi::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px; border-radius: var(--radius-sm) var(--radius-sm) 0 0; }
+  .kpi.danger::before { background: #E24B4A; }
+  .kpi.warn::before { background: #EF9F27; }
+  .kpi.ok::before { background: #639922; }
+  .kpi.info::before { background: #378ADD; }
+  .kpi.purple::before { background: #534AB7; }
+  .kpi.teal::before { background: #0F6E56; }
+  .kpi .lbl { font-size: 10px; color: var(--text3); margin-bottom: 6px; line-height: 1.3; }
+  .kpi .val { font-size: 24px; font-weight: 700; line-height: 1; margin-bottom: 4px; }
+  .kpi.danger .val { color: #a32d2d; }
+  .kpi.warn .val { color: #854f0b; }
+  .kpi.ok .val { color: #3b6d11; }
+  .kpi.info .val { color: #185fa5; }
+  .kpi.purple .val { color: #534ab7; }
+  .kpi.teal .val { color: #0f6e56; }
+  .kpi .sub { font-size: 10px; color: var(--text3); }
+  .kpi .trend { font-size: 10px; position: absolute; top: 14px; right: 12px; padding: 2px 6px; border-radius: 20px; }
+  .kpi .trend.up { background: #FCEBEB; color: #a32d2d; }
+  .kpi .trend.down { background: #EAF3DE; color: #3b6d11; }
+  .kpi .trend.neutral { background: #F1EFE8; color: #5f5e5a; }
+
+  /* GRID LAYOUTS */
+  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 1.25rem; }
+  .grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 14px; margin-bottom: 1.25rem; }
+  .grid-3-1 { display: grid; grid-template-columns: 2fr 1fr; gap: 14px; margin-bottom: 1.25rem; }
+  .card { background: var(--surface); border-radius: var(--radius); border: 1px solid var(--border); box-shadow: var(--shadow); padding: 1.25rem; }
+  .card-title { font-size: 13px; font-weight: 600; color: var(--text); margin-bottom: 1rem; display: flex; align-items: center; gap: 8px; }
+  .card-title .icon { font-size: 16px; }
+  .chart-wrap { position: relative; width: 100%; }
+  .h160 { height: 160px; } .h180 { height: 180px; } .h200 { height: 200px; } .h220 { height: 220px; } .h240 { height: 240px; } .h280 { height: 280px; }
+
+  /* BODY MAP */
+  .body-map-wrap { display: flex; gap: 1rem; align-items: flex-start; }
+  .body-map-svg { flex-shrink: 0; }
+  .body-legend { flex: 1; }
+  .body-legend-item { display: flex; align-items: center; gap: 8px; font-size: 12px; padding: 5px 0; border-bottom: 1px solid var(--border); }
+  .body-legend-item:last-child { border-bottom: none; }
+  .body-dot { width: 12px; height: 12px; border-radius: 3px; flex-shrink: 0; }
+  .body-legend-pct { margin-left: auto; font-weight: 600; font-size: 11px; }
+
+  /* PROGRESS */
+  .prog-row { margin-bottom: 10px; }
+  .prog-label { display: flex; justify-content: space-between; font-size: 12px; margin-bottom: 4px; }
+  .prog-label span:first-child { color: var(--text2); }
+  .prog-label span:last-child { font-weight: 600; color: var(--text); }
+  .prog-bar { height: 8px; border-radius: 4px; background: var(--surface2); overflow: hidden; }
+  .prog-fill { height: 100%; border-radius: 4px; transition: width .6s ease; }
+
+  /* PILLS */
+  .pill { display: inline-block; font-size: 10px; padding: 2px 8px; border-radius: 20px; font-weight: 600; }
+  .pill.red { background: #FCEBEB; color: #791f1f; }
+  .pill.amber { background: #FAEEDA; color: #633806; }
+  .pill.green { background: #EAF3DE; color: #27500a; }
+  .pill.blue { background: #E6F1FB; color: #0c447c; }
+  .pill.gray { background: #F1EFE8; color: #444441; }
+  .pill.purple { background: #EEEDFE; color: #3c3489; }
+
+  /* TABLE */
+  .data-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  .data-table th { font-size: 10px; font-weight: 600; color: var(--text3); text-align: left; padding: 6px 10px; border-bottom: 1.5px solid var(--border); white-space: nowrap; text-transform: uppercase; letter-spacing: .4px; }
+  .data-table td { padding: 7px 10px; border-bottom: 1px solid var(--border); color: var(--text); vertical-align: middle; }
+  .data-table tr:last-child td { border-bottom: none; }
+  .data-table tbody tr:hover td { background: var(--surface2); }
+
+  /* LEGEND */
+  .legend { display: flex; flex-wrap: wrap; gap: 12px; margin-bottom: 10px; }
+  .legend-item { display: flex; align-items: center; gap: 5px; font-size: 11px; color: var(--text2); }
+  .legend-sq { width: 10px; height: 10px; border-radius: 2px; flex-shrink: 0; }
+
+  /* STAT ROW */
+  .stat-row { display: flex; gap: 1rem; margin-bottom: .75rem; }
+  .stat-mini { flex: 1; text-align: center; background: var(--surface2); border-radius: var(--radius-sm); padding: .5rem; }
+  .stat-mini .v { font-size: 20px; font-weight: 700; }
+  .stat-mini .l { font-size: 10px; color: var(--text3); margin-top: 2px; }
+
+  /* DONUT CENTER */
+  .donut-wrap { position: relative; }
+  .donut-center { position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%); text-align: center; pointer-events: none; }
+  .donut-center .dc-val { font-size: 22px; font-weight: 700; }
+  .donut-center .dc-lbl { font-size: 10px; color: var(--text3); }
+
+  /* FOOTER */
+  .footer { text-align: center; padding: 2rem; font-size: 11px; color: var(--text3); }
+
+  @media (max-width: 900px) {
+    .semaforo { grid-template-columns: repeat(3,1fr); }
+    .kpi-grid { grid-template-columns: repeat(3,1fr); }
+    .grid-2, .grid-3, .grid-3-1 { grid-template-columns: 1fr; }
+  }
+  @media (max-width: 560px) {
+    .main { padding: 1rem; }
+    .kpi-grid { grid-template-columns: repeat(2,1fr); }
+    .semaforo { grid-template-columns: repeat(2,1fr); }
+    .topbar { padding: 0 1rem; }
+    .topbar h1 { font-size: 14px; }
+  }
+</style>
+</head>
+<body>
+
+<!-- TOPBAR -->
+<div class="topbar">
+  <div class="topbar-left">
+    <div class="topbar-icon">🛡️</div>
+    <div>
+      <div class="topbar h1" style="font-size:16px;font-weight:600;color:#fff">Dashboard Central SG-SST</div>
+      <div class="topbar-sub" id="empresa-nombre">Empresa • Período 2025</div>
+    </div>
+  </div>
+  <div class="topbar-right">
+    <span class="badge">Decreto 1072/2015</span>
+    <span class="badge">Res. 0312/2019</span>
+    <label class="upload-btn" for="file-input">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M17 8l-5-5-5 5M12 3v12"/></svg>
+      Cargar Excel
+    </label>
+    <input type="file" id="file-input" accept=".xlsx,.xls">
+  </div>
+</div>
+
+<!-- UPLOAD BANNER (shown when no file loaded) -->
+<div class="upload-banner" id="upload-banner">
+  ⚠️ <strong>Modo demo:</strong> Visualizando datos de ejemplo. Carga tu archivo <strong>Dashboard_SG-SST_Colombia.xlsx</strong> con el botón arriba para ver tus datos reales.
+</div>
+
+<!-- DROP ZONE -->
+<div class="drop-zone hidden" id="drop-zone">
+  <div style="font-size:32px;margin-bottom:8px">📂</div>
+  <div style="font-weight:600;margin-bottom:4px">Arrastra tu Excel aquí</div>
+  <div style="color:#5a6170;font-size:12px">o haz clic para seleccionar — Dashboard_SG-SST_Colombia.xlsx</div>
+</div>
+
+<div class="main" id="main-content">
+
+  <!-- SEMÁFORO GENERAL -->
+  <div class="semaforo" id="semaforo">
+    <div class="sem red"><div class="sem-dot"></div><div class="sem-label">Accidentalidad</div><div class="sem-val">Alto ⚠️</div></div>
+    <div class="sem amber"><div class="sem-dot"></div><div class="sem-label">Ausentismo</div><div class="sem-val">Medio</div></div>
+    <div class="sem green"><div class="sem-dot"></div><div class="sem-label">Cumpl. Legal</div><div class="sem-val">72%</div></div>
+    <div class="sem amber"><div class="sem-dot"></div><div class="sem-label">Plan Trabajo</div><div class="sem-val">60%</div></div>
+    <div class="sem amber"><div class="sem-dot"></div><div class="sem-label">Capacitaciones</div><div class="sem-val">70%</div></div>
+    <div class="sem green"><div class="sem-dot"></div><div class="sem-label">Inspecciones</div><div class="sem-val">57% cierre</div></div>
+  </div>
+
+  <!-- ═══════════════════ ACCIDENTALIDAD ═══════════════════ -->
+  <div class="section-title">🚨 Accidentalidad</div>
+  <div class="kpi-grid">
+    <div class="kpi danger"><span class="trend up">▲ vs meta</span><div class="lbl">IF — Índice de Frecuencia</div><div class="val" id="kpi-if">48.0</div><div class="sub">Meta ≤ 35 | por 240.000 hh</div></div>
+    <div class="kpi warn"><span class="trend up">▲</span><div class="lbl">IS — Índice de Severidad</div><div class="val" id="kpi-is">360</div><div class="sub">Meta ≤ 300 | días perdidos</div></div>
+    <div class="kpi danger"><span class="trend up">▲</span><div class="lbl">ILI — Índice Lesiones Incap.</div><div class="val" id="kpi-ili">17.3</div><div class="sub">Meta ≤ 10</div></div>
+    <div class="kpi info"><div class="lbl">Accidentes AT registrados</div><div class="val" id="kpi-at">4</div><div class="sub">Acumulado 2025</div></div>
+    <div class="kpi warn"><div class="lbl">Días perdidos totales</div><div class="val" id="kpi-dias">25</div><div class="sub">Por incapacidad AT/EL</div></div>
+    <div class="kpi teal"><div class="lbl">Incidentes sin baja</div><div class="val" id="kpi-inc">1</div><div class="sub">Cuasi-accidentes</div></div>
+  </div>
+
+  <div class="grid-3">
+    <!-- Accidentes por mes -->
+    <div class="card">
+      <div class="card-title"><span class="icon">📊</span>Accidentes por mes</div>
+      <div class="legend">
+        <div class="legend-item"><div class="legend-sq" style="background:#E24B4A"></div>AT 2025</div>
+        <div class="legend-item"><div class="legend-sq" style="background:#B5D4F4;outline:1px dashed #378ADD"></div>Meta mensual</div>
+      </div>
+      <div class="chart-wrap h180"><canvas id="c-acc-mes" role="img" aria-label="Accidentes de trabajo por mes 2025"></canvas></div>
+    </div>
+
+    <!-- Tendencia IF IS -->
+    <div class="card">
+      <div class="card-title"><span class="icon">📈</span>Tendencia IF e IS mensual</div>
+      <div class="legend">
+        <div class="legend-item"><div class="legend-sq" style="background:#E24B4A"></div>IF (eje izq.)</div>
+        <div class="legend-item"><div class="legend-sq" style="background:#EF9F27"></div>IS (eje der.)</div>
+      </div>
+      <div class="chart-wrap h180"><canvas id="c-trend" role="img" aria-label="Tendencia mensual IF e IS"></canvas></div>
+    </div>
+
+    <!-- Tipo de evento donut -->
+    <div class="card">
+      <div class="card-title"><span class="icon">🍩</span>Tipo de evento</div>
+      <div class="donut-wrap" style="position:relative">
+        <div class="chart-wrap h180"><canvas id="c-tipo" role="img" aria-label="Distribución tipo de evento SST"></canvas></div>
+        <div class="donut-center"><div class="dc-val" id="donut-total-at">5</div><div class="dc-lbl">eventos</div></div>
+      </div>
+      <div class="legend" style="margin-top:8px;margin-bottom:0">
+        <div class="legend-item"><div class="legend-sq" style="background:#E24B4A"></div>AT 80%</div>
+        <div class="legend-item"><div class="legend-sq" style="background:#EF9F27"></div>EL 20%</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Causa raíz + Mapa corporal -->
+  <div class="grid-2">
+    <div class="card">
+      <div class="card-title"><span class="icon">🧍</span>Partes del cuerpo afectadas</div>
+      <div class="body-map-wrap">
+        <svg class="body-map-svg" viewBox="0 0 160 310" width="130" height="260">
+          <!-- Silueta base -->
+          <ellipse cx="80" cy="32" rx="20" ry="24" fill="#e8eaed"/>
+          <rect x="58" y="55" width="44" height="68" rx="8" fill="#e8eaed"/>
+          <rect x="30" y="58" width="26" height="52" rx="11" fill="#e8eaed"/>
+          <rect x="104" y="58" width="26" height="52" rx="11" fill="#e8eaed"/>
+          <rect x="60" y="121" width="18" height="66" rx="9" fill="#e8eaed"/>
+          <rect x="82" y="121" width="18" height="66" rx="9" fill="#e8eaed"/>
+          <rect x="60" y="183" width="18" height="46" rx="9" fill="#e8eaed"/>
+          <rect x="82" y="183" width="18" height="46" rx="9" fill="#e8eaed"/>
+          <ellipse cx="69" cy="236" rx="15" ry="8" fill="#e8eaed"/>
+          <ellipse cx="91" cy="236" rx="15" ry="8" fill="#e8eaed"/>
+          <!-- Afectados -->
+          <rect x="30" y="58" width="26" height="52" rx="11" fill="#E24B4A" opacity=".88"/>
+          <text x="43" y="83" text-anchor="middle" font-size="8" fill="#791f1f" font-weight="700">Mano</text>
+          <text x="43" y="94" text-anchor="middle" font-size="7" fill="#791f1f">1 caso</text>
+          <rect x="58" y="112" width="44" height="22" rx="5" fill="#EF9F27" opacity=".88"/>
+          <text x="80" y="127" text-anchor="middle" font-size="8" fill="#412402" font-weight="700">Lumbar · 2</text>
+          <rect x="82" y="172" width="18" height="24" rx="7" fill="#F09595" opacity=".9"/>
+          <text x="91" y="188" text-anchor="middle" font-size="7" fill="#501313">Rodilla</text>
+          <rect x="62" y="48" width="36" height="14" rx="4" fill="#FAEEDA"/>
+          <text x="80" y="59" text-anchor="middle" font-size="7" fill="#412402">Cervical · 1</text>
+          <!-- Leyenda abajo -->
+          <rect x="4" y="260" width="9" height="9" rx="2" fill="#E24B4A"/>
+          <text x="16" y="268" font-size="7" fill="#a32d2d">Alta frec.</text>
+          <rect x="60" y="260" width="9" height="9" rx="2" fill="#EF9F27"/>
+          <text x="72" y="268" font-size="7" fill="#633806">Media</text>
+          <rect x="106" y="260" width="9" height="9" rx="2" fill="#F09595"/>
+          <text x="118" y="268" font-size="7" fill="#501313">Baja</text>
+        </svg>
+        <div class="body-legend" id="body-legend-list">
+          <div style="font-size:11px;font-weight:600;color:#5a6170;margin-bottom:8px;text-transform:uppercase;letter-spacing:.5px">Detalle lesiones</div>
+          <div class="body-legend-item"><div class="body-dot" style="background:#E24B4A"></div><span>Mano derecha</span><span class="body-legend-pct" style="color:#a32d2d">1 caso · AT Feb</span></div>
+          <div class="body-legend-item"><div class="body-dot" style="background:#EF9F27"></div><span>Zona lumbar</span><span class="body-legend-pct" style="color:#854f0b">2 casos · AT/EL</span></div>
+          <div class="body-legend-item"><div class="body-dot" style="background:#F09595"></div><span>Rodilla</span><span class="body-legend-pct" style="color:#791f1f">1 caso · AT May</span></div>
+          <div class="body-legend-item"><div class="body-dot" style="background:#FAEEDA;border:1px solid #EF9F27"></div><span>Columna cervical</span><span class="body-legend-pct" style="color:#854f0b">1 caso · EL</span></div>
+          <div style="margin-top:14px;padding-top:10px;border-top:1px solid #eee">
+            <div style="font-size:11px;font-weight:600;color:#5a6170;margin-bottom:6px">Causa raíz</div>
+            <div class="body-legend-item"><div class="body-dot" style="background:#E24B4A"></div><span>Falta / mal uso EPP</span><span class="body-legend-pct">2</span></div>
+            <div class="body-legend-item"><div class="body-dot" style="background:#EF9F27"></div><span>Condición insegura</span><span class="body-legend-pct">2</span></div>
+            <div class="body-legend-item"><div class="body-dot" style="background:#D3D1C7"></div><span>Acto inseguro</span><span class="body-legend-pct">1</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Acciones correctivas abiertas -->
+    <div class="card">
+      <div class="card-title"><span class="icon">📋</span>Acciones correctivas abiertas</div>
+      <table class="data-table" id="tbl-acciones">
+        <thead><tr><th>Origen</th><th>Descripción</th><th>Resp.</th><th>Vence</th><th>Estado</th></tr></thead>
+        <tbody>
+          <tr><td>AT Feb</td><td>Rediseño puesto ergonómico</td><td>Supervisor</td><td>May-15</td><td><span class="pill amber">En proceso</span></td></tr>
+          <tr><td>Insp. Mar</td><td>Cerramiento tableros eléctricos</td><td>Mant.</td><td>Abr-15</td><td><span class="pill red">Vencida</span></td></tr>
+          <tr><td>AT May</td><td>Revisión técnica vehículo</td><td>Conductor</td><td>Jun-01</td><td><span class="pill amber">En proceso</span></td></tr>
+          <tr><td>Legal</td><td>Certificar trabajo en alturas</td><td>RRHH</td><td>Jul-01</td><td><span class="pill red">Abierta</span></td></tr>
+          <tr><td>Legal</td><td>Matriz contratistas SST</td><td>Resp. SST</td><td>Jun-30</td><td><span class="pill red">Abierta</span></td></tr>
+          <tr><td>Insp. Abr</td><td>Orden área mantenimiento</td><td>Supervisor</td><td>Abr-20</td><td><span class="pill amber">En proceso</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- ═══════════════════ AUSENTISMO ═══════════════════ -->
+  <div class="section-title">📅 Ausentismo</div>
+  <div class="kpi-grid">
+    <div class="kpi warn"><div class="lbl">Total días ausentes</div><div class="val" id="kpi-aus-total">18</div><div class="sub">Acumulado</div></div>
+    <div class="kpi info"><div class="lbl">Enf. General</div><div class="val" id="kpi-aus-eg">6</div><div class="sub">días</div></div>
+    <div class="kpi warn"><div class="lbl">Enf. Laboral</div><div class="val" id="kpi-aus-el">5</div><div class="sub">días</div></div>
+    <div class="kpi danger"><div class="lbl">Accidente AT</div><div class="val" id="kpi-aus-at">7</div><div class="sub">días</div></div>
+    <div class="kpi purple"><div class="lbl">N° episodios</div><div class="val" id="kpi-aus-ep">5</div><div class="sub">casos</div></div>
+    <div class="kpi teal"><div class="lbl">Prom. días/episodio</div><div class="val" id="kpi-aus-prom">3.6</div><div class="sub">días</div></div>
+  </div>
+
+  <div class="grid-2">
+    <div class="card">
+      <div class="card-title"><span class="icon">📊</span>Días ausentes por tipo de causa</div>
+      <div class="legend">
+        <div class="legend-item"><div class="legend-sq" style="background:#378ADD"></div>Enf. General</div>
+        <div class="legend-item"><div class="legend-sq" style="background:#EF9F27"></div>Enf. Laboral</div>
+        <div class="legend-item"><div class="legend-sq" style="background:#E24B4A"></div>AT</div>
+        <div class="legend-item"><div class="legend-sq" style="background:#1D9E75"></div>Calamidad</div>
+      </div>
+      <div class="chart-wrap h200"><canvas id="c-aus" role="img" aria-label="Días ausentes por causa"></canvas></div>
+    </div>
+    <div class="card">
+      <div class="card-title"><span class="icon">📈</span>Evolución mensual de ausentismo</div>
+      <div class="legend">
+        <div class="legend-item"><div class="legend-sq" style="background:#534AB7"></div>Días/mes</div>
+        <div class="legend-item"><div class="legend-sq" style="background:#D3D1C7;outline:1px dashed #888780"></div>Meta (≤4 días)</div>
+      </div>
+      <div class="chart-wrap h200"><canvas id="c-aus-trend" role="img" aria-label="Tendencia mensual ausentismo"></canvas></div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════ CUMPLIMIENTO LEGAL + PLAN ═══════════════════ -->
+  <div class="grid-2">
+    <!-- Legal -->
+    <div>
+      <div class="section-title">⚖️ Requisitos legales</div>
+      <div class="card">
+        <div class="grid-2" style="gap:10px;margin-bottom:1rem">
+          <div>
+            <div class="stat-row">
+              <div class="stat-mini"><div class="v" style="color:#3b6d11" id="leg-cumple">8</div><div class="l">Cumple ✅</div></div>
+              <div class="stat-mini"><div class="v" style="color:#854f0b" id="leg-parcial">1</div><div class="l">Parcial ⚠️</div></div>
+              <div class="stat-mini"><div class="v" style="color:#a32d2d" id="leg-no">2</div><div class="l">No cumple ❌</div></div>
+            </div>
+            <div class="prog-row" style="margin-top:12px">
+              <div class="prog-label"><span>% Cumplimiento</span><span id="leg-pct">72.7%</span></div>
+              <div class="prog-bar"><div class="prog-fill" id="leg-bar" style="width:72.7%;background:#639922"></div></div>
+            </div>
+            <div style="font-size:11px;color:#a32d2d;margin-top:10px;font-weight:600">⚠️ Incumplimientos críticos:</div>
+            <div style="font-size:11px;color:#5a6170;margin-top:4px;line-height:1.6" id="leg-criticos">
+              • Trabajo en alturas sin certificar<br>• Matriz de contratistas pendiente
+            </div>
+          </div>
+          <div>
+            <div class="donut-wrap" style="position:relative">
+              <div class="chart-wrap h160"><canvas id="c-legal" role="img" aria-label="Cumplimiento legal donut"></canvas></div>
+              <div class="donut-center"><div class="dc-val" id="legal-total-num">11</div><div class="dc-lbl">normas</div></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Plan trabajo -->
+    <div>
+      <div class="section-title">📌 Plan de trabajo PHVA</div>
+      <div class="card">
+        <div class="stat-row" style="margin-bottom:12px">
+          <div class="stat-mini"><div class="v" style="color:#3b6d11" id="plan-ej">4</div><div class="l">Ejecutadas</div></div>
+          <div class="stat-mini"><div class="v" style="color:#185fa5" id="plan-ec">4</div><div class="l">En curso</div></div>
+          <div class="stat-mini"><div class="v" style="color:#a32d2d" id="plan-pend">2</div><div class="l">Pendientes</div></div>
+        </div>
+        <div class="prog-row">
+          <div class="prog-label"><span>% Avance global</span><span id="plan-pct">60%</span></div>
+          <div class="prog-bar"><div class="prog-fill" id="plan-bar" style="width:60%;background:#378ADD"></div></div>
+        </div>
+        <div style="margin-top:14px">
+          <div class="prog-row"><div class="prog-label"><span><span class="pill blue">P</span> Planear</span><span>3 act.</span></div><div class="prog-bar"><div class="prog-fill" style="width:67%;background:#378ADD"></div></div></div>
+          <div class="prog-row"><div class="prog-label"><span><span class="pill green">H</span> Hacer</span><span>5 act.</span></div><div class="prog-bar"><div class="prog-fill" style="width:40%;background:#639922"></div></div></div>
+          <div class="prog-row"><div class="prog-label"><span><span class="pill amber">V</span> Verificar</span><span>2 act.</span></div><div class="prog-bar"><div class="prog-fill" style="width:50%;background:#EF9F27"></div></div></div>
+          <div class="prog-row"><div class="prog-label"><span><span class="pill red">A</span> Actuar</span><span>0 act.</span></div><div class="prog-bar"><div class="prog-fill" style="width:0%;background:#E24B4A"></div></div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════ CAPACITACIONES ═══════════════════ -->
+  <div class="section-title">🎓 Capacitaciones</div>
+  <div class="grid-2">
+    <div class="card">
+      <div class="card-title"><span class="icon">📊</span>Cobertura por tema (%)</div>
+      <div class="chart-wrap h220"><canvas id="c-cap" role="img" aria-label="Cobertura de capacitaciones por tema"></canvas></div>
+    </div>
+    <div class="card">
+      <div class="card-title"><span class="icon">📋</span>Estado del plan de capacitaciones</div>
+      <div class="stat-row" style="margin-bottom:1rem">
+        <div class="stat-mini"><div class="v" id="cap-ej" style="color:#3b6d11">6</div><div class="l">Ejecutadas</div></div>
+        <div class="stat-mini"><div class="v" id="cap-pend" style="color:#854f0b">4</div><div class="l">Pendientes</div></div>
+        <div class="stat-mini"><div class="v" id="cap-horas" style="color:#185fa5">30 h</div><div class="l">Horas total</div></div>
+        <div class="stat-mini"><div class="v" id="cap-eval" style="color:#534ab7">4.4</div><div class="l">Eval. prom.</div></div>
+      </div>
+      <div class="prog-row">
+        <div class="prog-label"><span>% Ejecución plan</span><span id="cap-pct">70%</span></div>
+        <div class="prog-bar"><div class="prog-fill" id="cap-bar" style="width:70%;background:#EF9F27"></div></div>
+      </div>
+      <div style="margin-top:1rem">
+        <table class="data-table" id="tbl-cap">
+          <thead><tr><th>Capacitación</th><th>Fecha</th><th>Cobertura</th><th>Estado</th></tr></thead>
+          <tbody>
+            <tr><td>Inducción SST</td><td>Ene-06</td><td>100%</td><td><span class="pill green">Ejecutada</span></td></tr>
+            <tr><td>Uso EPP</td><td>Feb-10</td><td>84%</td><td><span class="pill green">Ejecutada</span></td></tr>
+            <tr><td>Trabajo en alturas</td><td>Mar-15</td><td>100%</td><td><span class="pill green">Ejecutada</span></td></tr>
+            <tr><td>Manejo de cargas</td><td>Abr-08</td><td>100%</td><td><span class="pill green">Ejecutada</span></td></tr>
+            <tr><td>Plan de emergencias</td><td>May-12</td><td>89%</td><td><span class="pill green">Ejecutada</span></td></tr>
+            <tr><td>Riesgo psicosocial</td><td>Jun-10</td><td>93%</td><td><span class="pill green">Ejecutada</span></td></tr>
+            <tr><td>Primeros auxilios</td><td>Jul-15</td><td>—</td><td><span class="pill amber">Pendiente</span></td></tr>
+            <tr><td>Riesgo eléctrico</td><td>Ago-20</td><td>—</td><td><span class="pill amber">Pendiente</span></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════ INSPECCIONES ═══════════════════ -->
+  <div class="section-title">🔍 Inspecciones de seguridad</div>
+  <div class="kpi-grid" style="grid-template-columns:repeat(4,1fr)">
+    <div class="kpi info"><div class="lbl">Total inspecciones</div><div class="val" id="ins-total">7</div><div class="sub">Planeadas + no planeadas</div></div>
+    <div class="kpi danger"><div class="lbl">Hallazgos totales</div><div class="val" id="ins-hall">26</div><div class="sub">Registrados</div></div>
+    <div class="kpi ok"><div class="lbl">Inspecciones cerradas</div><div class="val" id="ins-cerr">4</div><div class="sub">Con acciones</div></div>
+    <div class="kpi warn"><div class="lbl">% Cierre acciones</div><div class="val" id="ins-pct">57%</div><div class="sub">Meta ≥ 80%</div></div>
+  </div>
+
+  <div class="grid-2">
+    <div class="card">
+      <div class="card-title"><span class="icon">📊</span>Hallazgos por área y nivel de riesgo</div>
+      <div class="legend">
+        <div class="legend-item"><div class="legend-sq" style="background:#E24B4A"></div>Alto</div>
+        <div class="legend-item"><div class="legend-sq" style="background:#EF9F27"></div>Medio</div>
+        <div class="legend-item"><div class="legend-sq" style="background:#639922"></div>Bajo</div>
+      </div>
+      <div class="chart-wrap h240"><canvas id="c-insp" role="img" aria-label="Hallazgos de inspección por área y nivel"></canvas></div>
+    </div>
+    <div class="card">
+      <div class="card-title"><span class="icon">📋</span>Registro de inspecciones</div>
+      <table class="data-table" id="tbl-insp">
+        <thead><tr><th>Área</th><th>Tipo</th><th>Hallazgos</th><th>Riesgo</th><th>Estado</th></tr></thead>
+        <tbody>
+          <tr><td>Producción</td><td>Mensual</td><td>5</td><td><span class="pill red">Alto</span></td><td><span class="pill green">Cerrada</span></td></tr>
+          <tr><td>Bodega</td><td>Mensual</td><td>3</td><td><span class="pill amber">Medio</span></td><td><span class="pill green">Cerrada</span></td></tr>
+          <tr><td>Eléctrico</td><td>Trimestral</td><td>7</td><td><span class="pill red">Alto</span></td><td><span class="pill red">Abierta</span></td></tr>
+          <tr><td>Extintores</td><td>Trimestral</td><td>2</td><td><span class="pill green">Bajo</span></td><td><span class="pill green">Cerrada</span></td></tr>
+          <tr><td>Mantenimiento</td><td>No planeada</td><td>4</td><td><span class="pill red">Alto</span></td><td><span class="pill red">Abierta</span></td></tr>
+          <tr><td>Oficinas</td><td>Semestral</td><td>3</td><td><span class="pill green">Bajo</span></td><td><span class="pill amber">En proceso</span></td></tr>
+          <tr><td>Vehículos</td><td>Mensual</td><td>2</td><td><span class="pill amber">Medio</span></td><td><span class="pill green">Cerrada</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+</div><!-- /main -->
+
+<div class="footer">
+  SG-SST Dashboard | Decreto 1072/2015 | Resolución 0312/2019 | GTC-45<br>
+  <span id="last-updated" style="font-size:10px;opacity:.6">Datos de ejemplo — carga tu Excel para actualizar</span>
+</div>
+
+<script>
+// ──────────────────────────────────────────────
+// CHART DEFAULTS
+// ──────────────────────────────────────────────
+Chart.defaults.font.family = "-apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif";
+Chart.defaults.font.size = 11;
+Chart.defaults.color = '#9aa0ac';
+
+const GC = {
+  grid: 'rgba(0,0,0,0.05)',
+  tooltip: { backgroundColor:'#fff', titleColor:'#1a1a2e', bodyColor:'#5a6170', borderColor:'rgba(0,0,0,0.1)', borderWidth:1, padding:10, cornerRadius:8 }
+};
+
+const baseOpts = (extra={}) => ({
+  responsive: true,
+  maintainAspectRatio: false,
+  plugins: { legend: { display:false }, tooltip: GC.tooltip, ...extra.plugins },
+  scales: { x:{ grid:{color:GC.grid}, ticks:{color:'#9aa0ac'} }, y:{ grid:{color:GC.grid}, ticks:{color:'#9aa0ac'} }, ...extra.scales },
+  ...extra
+});
+
+// ──────────────────────────────────────────────
+// CHART INSTANCES (stored for later update)
+// ──────────────────────────────────────────────
+let charts = {};
+
+function initCharts(d) {
+  // Destroy old charts
+  Object.values(charts).forEach(c => c.destroy && c.destroy());
+  charts = {};
+
+  // Accidentes por mes
+  charts.accMes = new Chart(document.getElementById('c-acc-mes'), {
+    type:'bar',
+    data:{ labels:d.meses, datasets:[
+      { label:'AT 2025', data:d.accMes, backgroundColor:'#E24B4A', borderRadius:5, borderSkipped:false },
+      { label:'Meta', data:Array(d.meses.length).fill(0.5), type:'line', borderColor:'#B5D4F4', borderDash:[4,3], pointRadius:0, borderWidth:1.5, fill:false }
+    ]},
+    options: baseOpts()
+  });
+
+  // Tendencia IF IS
+  charts.trend = new Chart(document.getElementById('c-trend'), {
+    type:'line',
+    data:{ labels:d.meses, datasets:[
+      { label:'IF', data:d.ifTrend, borderColor:'#E24B4A', backgroundColor:'rgba(226,75,74,0.07)', tension:.4, pointRadius:3, pointBackgroundColor:'#E24B4A', fill:true },
+      { label:'IS', data:d.isTrend, borderColor:'#EF9F27', backgroundColor:'rgba(239,159,39,0.05)', tension:.4, pointRadius:3, pointBackgroundColor:'#EF9F27', fill:true, yAxisID:'y2' }
+    ]},
+    options: baseOpts({ scales:{ x:{grid:{color:GC.grid},ticks:{color:'#9aa0ac'}}, y:{grid:{color:GC.grid},ticks:{color:'#E24B4A'}}, y2:{position:'right',grid:{drawOnChartArea:false},ticks:{color:'#EF9F27'}} } })
+  });
+
+  // Tipo evento
+  charts.tipo = new Chart(document.getElementById('c-tipo'), {
+    type:'doughnut',
+    data:{ labels:['Accidente AT','Enf. Laboral','Incidente'], datasets:[{ data:d.tipoEvento, backgroundColor:['#E24B4A','#EF9F27','#B5D4F4'], borderWidth:3, borderColor:'#fff', hoverBorderColor:'#f0f2f5' }] },
+    options:{ responsive:true, maintainAspectRatio:false, plugins:{ legend:{display:false}, tooltip:GC.tooltip }, cutout:'68%' }
+  });
+
+  // Ausentismo causa
+  charts.aus = new Chart(document.getElementById('c-aus'), {
+    type:'bar',
+    data:{ labels:['Enf. General','Enf. Laboral','Accidente AT','Calamidad'], datasets:[{ data:d.ausCausa, backgroundColor:['#378ADD','#EF9F27','#E24B4A','#1D9E75'], borderRadius:6 }] },
+    options: baseOpts({ indexAxis:'y', scales:{ x:{grid:{color:GC.grid},ticks:{color:'#9aa0ac'}}, y:{grid:{color:'transparent'},ticks:{color:'#9aa0ac'}} } })
+  });
+
+  // Ausentismo tendencia
+  charts.ausTrend = new Chart(document.getElementById('c-aus-trend'), {
+    type:'line',
+    data:{ labels:d.meses, datasets:[
+      { label:'Días/mes', data:d.ausTrend, borderColor:'#534AB7', backgroundColor:'rgba(83,74,183,0.07)', tension:.4, pointRadius:4, pointBackgroundColor:'#534AB7', fill:true },
+      { label:'Meta', data:Array(d.meses.length).fill(4), borderColor:'#D3D1C7', borderDash:[4,3], pointRadius:0, borderWidth:1.5, fill:false }
+    ]},
+    options: baseOpts()
+  });
+
+  // Legal donut
+  charts.legal = new Chart(document.getElementById('c-legal'), {
+    type:'doughnut',
+    data:{ labels:['Cumple','Cumple Parcial','No Cumple'], datasets:[{ data:d.legal, backgroundColor:['#639922','#EF9F27','#E24B4A'], borderWidth:3, borderColor:'#fff', hoverBorderColor:'#f0f2f5' }] },
+    options:{ responsive:true, maintainAspectRatio:false, plugins:{ legend:{display:false}, tooltip:GC.tooltip }, cutout:'65%' }
+  });
+
+  // Capacitaciones
+  charts.cap = new Chart(document.getElementById('c-cap'), {
+    type:'bar',
+    data:{ labels:d.capTemas, datasets:[{ data:d.capCob, backgroundColor: d.capCob.map(v => v>=90?'#639922':v>=70?'#EF9F27':'#E24B4A'), borderRadius:5 }] },
+    options: baseOpts({ indexAxis:'y', scales:{ x:{grid:{color:GC.grid},ticks:{color:'#9aa0ac',callback:v=>v+'%'},min:0,max:100}, y:{grid:{color:'transparent'},ticks:{color:'#9aa0ac'}} }, plugins:{ legend:{display:false}, tooltip:{ ...GC.tooltip, callbacks:{label:ctx=>` ${ctx.raw}% cobertura`} } } })
+  });
+
+  // Inspecciones
+  charts.insp = new Chart(document.getElementById('c-insp'), {
+    type:'bar',
+    data:{ labels:d.inspAreas, datasets:[
+      { label:'Alto', data:d.inspAlto, backgroundColor:'#E24B4A', borderRadius:[5,5,0,0], stack:'s' },
+      { label:'Medio', data:d.inspMedio, backgroundColor:'#EF9F27', stack:'s' },
+      { label:'Bajo', data:d.inspBajo, backgroundColor:'#639922', borderRadius:[0,0,5,5], stack:'s' }
+    ]},
+    options: baseOpts({ scales:{ x:{stacked:true,grid:{color:'transparent'},ticks:{color:'#9aa0ac',maxRotation:40}}, y:{stacked:true,grid:{color:GC.grid},ticks:{color:'#9aa0ac',stepSize:2}} } })
+  });
+}
+
+// ──────────────────────────────────────────────
+// DEFAULT DEMO DATA
+// ──────────────────────────────────────────────
+const demoData = {
+  meses: ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep'],
+  accMes: [1,1,0,1,1,0,0,0,0],
+  ifTrend: [0,24,24,48,48,48,48,48,48],
+  isTrend: [0,120,120,240,360,360,360,360,360],
+  tipoEvento: [4,1,1],
+  ausCausa: [6,5,7,0],
+  ausTrend: [3,5,1,6,3,0,0,0,0],
+  legal: [8,1,2],
+  capTemas: ['Inducción SST','Uso EPP','Trabajo alturas','Manejo cargas','Emergencias','Riesgo psicosocial'],
+  capCob: [100,84,100,100,89,93],
+  inspAreas: ['Producción','Bodega','Eléctrico','Extintores','Mant.','Oficinas','Vehículos'],
+  inspAlto: [2,1,4,0,3,0,0],
+  inspMedio: [2,1,2,1,1,1,2],
+  inspBajo: [1,1,1,1,0,2,0],
+};
+
+initCharts(demoData);
+
+// ──────────────────────────────────────────────
+// EXCEL READER
+// ──────────────────────────────────────────────
+function getSheetData(wb, name) {
+  const ws = wb.Sheets[name];
+  if (!ws) return [];
+  return XLSX.utils.sheet_to_json(ws, { header:1, defval:'' });
+}
+
+function safeNum(v, def=0) {
+  const n = parseFloat(v);
+  return isNaN(n) ? def : n;
+}
+
+function processExcel(wb) {
+  const data = { ...demoData };
+
+  try {
+    // ── ACCIDENTALIDAD ──
+    const acc = getSheetData(wb, 'Accidentalidad');
+    const accRows = acc.slice(3).filter(r => r[0] && r[0] !== 'N°');
+    if (accRows.length) {
+      // KPIs
+      const totalAT = accRows.filter(r => String(r[8]).trim() === 'AT').length;
+      const totalDias = accRows.reduce((s,r) => s + safeNum(r[7]), 0);
+      const totalInc = accRows.filter(r => String(r[5]).toLowerCase().includes('incidente')).length;
+      const hh = 1000; // horas-hombre estimadas (240.000 = base normalización)
+      const IF_ = +(totalAT / hh * 240000).toFixed(1);
+      const IS_ = +(totalDias / hh * 240000).toFixed(0);
+      const ILI_ = +((IF_ * IS_) / 1000).toFixed(1);
+
+      document.getElementById('kpi-if').textContent = IF_;
+      document.getElementById('kpi-is').textContent = IS_;
+      document.getElementById('kpi-ili').textContent = ILI_;
+      document.getElementById('kpi-at').textContent = totalAT;
+      document.getElementById('kpi-dias').textContent = totalDias;
+      document.getElementById('kpi-inc').textContent = totalInc;
+      document.getElementById('donut-total-at').textContent = accRows.length;
+
+      // Accidentes por mes
+      const mesesMap = {'01':0,'02':1,'03':2,'04':3,'05':4,'06':5,'07':6,'08':7,'09':8,'10':9,'11':10,'12':11};
+      const accPorMes = Array(9).fill(0);
+      accRows.forEach(r => {
+        const fecha = String(r[1]);
+        const mes = fecha.slice(5,7);
+        const idx = mesesMap[mes];
+        if (idx !== undefined && idx < 9) accPorMes[idx]++;
+      });
+      data.accMes = accPorMes;
+
+      // Tipo evento
+      const nAT = accRows.filter(r => String(r[8]).trim()==='AT').length;
+      const nEL = accRows.filter(r => ['EL','EP'].includes(String(r[8]).trim())).length;
+      const nInc = accRows.filter(r => String(r[5]).toLowerCase().includes('incidente')).length;
+      data.tipoEvento = [nAT, nEL, nInc];
+
+      // IF trend acumulado
+      const ifAcum = [];
+      const isAcum = [];
+      let acumAT=0, acumDias=0;
+      for(let i=0;i<9;i++){
+        acumAT += accPorMes[i];
+        const daysMes = accRows.filter(r=>{ const m=String(r[1]).slice(5,7); return mesesMap[m]===i; }).reduce((s,r)=>s+safeNum(r[7]),0);
+        acumDias += daysMes;
+        ifAcum.push(+(acumAT/hh*240000).toFixed(1));
+        isAcum.push(+(acumDias/hh*240000).toFixed(0));
+      }
+      data.ifTrend = ifAcum;
+      data.isTrend = isAcum;
+    }
+
+    // ── AUSENTISMO ──
+    const aus = getSheetData(wb, 'Ausentismo');
+    const ausRows = aus.slice(3).filter(r => r[3]);
+    if (ausRows.length) {
+      const totalDiasAus = ausRows.reduce((s,r)=>s+safeNum(r[8]),0);
+      const ausEG = ausRows.filter(r=>String(r[6]).includes('General')).reduce((s,r)=>s+safeNum(r[8]),0);
+      const ausEL = ausRows.filter(r=>String(r[6]).includes('Laboral')).reduce((s,r)=>s+safeNum(r[8]),0);
+      const ausAT = ausRows.filter(r=>String(r[6]).includes('Accidente')).reduce((s,r)=>s+safeNum(r[8]),0);
+      const ausCal = ausRows.filter(r=>String(r[6]).includes('Calamidad')).reduce((s,r)=>s+safeNum(r[8]),0);
+
+      document.getElementById('kpi-aus-total').textContent = totalDiasAus;
+      document.getElementById('kpi-aus-eg').textContent = ausEG;
+      document.getElementById('kpi-aus-el').textContent = ausEL;
+      document.getElementById('kpi-aus-at').textContent = ausAT;
+      document.getElementById('kpi-aus-ep').textContent = ausRows.length;
+      document.getElementById('kpi-aus-prom').textContent = ausRows.length ? (totalDiasAus/ausRows.length).toFixed(1) : 0;
+
+      data.ausCausa = [ausEG, ausEL, ausAT, ausCal];
+
+      const ausMes = Array(9).fill(0);
+      const mMap={'01':0,'02':1,'03':2,'04':3,'05':4,'06':5,'07':6,'08':7,'09':8};
+      ausRows.forEach(r=>{
+        const f=String(r[1]);
+        const m=f.slice(5,7);
+        if(mMap[m]!==undefined) ausMes[mMap[m]]+=safeNum(r[8]);
+      });
+      data.ausTrend = ausMes;
+    }
+
+    // ── REQUISITOS LEGALES ──
+    const leg = getSheetData(wb, 'Requisitos Legales');
+    const legRows = leg.slice(3).filter(r => r[1]);
+    if (legRows.length) {
+      const cumple = legRows.filter(r=>String(r[7]).trim()==='Cumple').length;
+      const parcial = legRows.filter(r=>String(r[7]).trim()==='Cumple Parcial').length;
+      const noCumple = legRows.filter(r=>String(r[7]).trim()==='No Cumple').length;
+      const pct = legRows.length ? (cumple/legRows.length*100).toFixed(1) : 0;
+
+      document.getElementById('leg-cumple').textContent = cumple;
+      document.getElementById('leg-parcial').textContent = parcial;
+      document.getElementById('leg-no').textContent = noCumple;
+      document.getElementById('leg-pct').textContent = pct + '%';
+      document.getElementById('leg-bar').style.width = pct + '%';
+      document.getElementById('legal-total-num').textContent = legRows.length;
+      data.legal = [cumple, parcial, noCumple];
+
+      const criticos = legRows.filter(r=>String(r[7]).trim()==='No Cumple').map(r=>'• '+String(r[3])).join('<br>');
+      document.getElementById('leg-criticos').innerHTML = criticos || '✅ Sin incumplimientos';
+    }
+
+    // ── PLAN DE TRABAJO ──
+    const plan = getSheetData(wb, 'Plan de Trabajo');
+    const planRows = plan.slice(3).filter(r => r[2]);
+    if (planRows.length) {
+      const ej = planRows.filter(r=>String(r[15]).trim()==='Ejecutado').length;
+      const ec = planRows.filter(r=>String(r[15]).trim()==='En curso').length;
+      const pend = planRows.filter(r=>String(r[15]).trim()==='Pendiente').length;
+      const pct = planRows.length ? Math.round(ej/planRows.length*100) : 0;
+
+      document.getElementById('plan-ej').textContent = ej;
+      document.getElementById('plan-ec').textContent = ec;
+      document.getElementById('plan-pend').textContent = pend;
+      document.getElementById('plan-pct').textContent = pct + '%';
+      document.getElementById('plan-bar').style.width = pct + '%';
+    }
+
+    // ── CAPACITACIONES ──
+    const cap = getSheetData(wb, 'Plan Capacitaciones');
+    const capRows = cap.slice(3).filter(r => r[1]);
+    if (capRows.length) {
+      const capEj = capRows.filter(r=>String(r[11]).trim()==='Ejecutada').length;
+      const capPend = capRows.filter(r=>String(r[11]).trim()==='Pendiente').length;
+      const capHoras = capRows.reduce((s,r)=>s+safeNum(r[6]),0);
+      const evalArr = capRows.map(r=>safeNum(r[10])).filter(v=>v>0);
+      const capEval = evalArr.length ? (evalArr.reduce((a,b)=>a+b)/evalArr.length).toFixed(1) : '—';
+      const capPct = capRows.length ? Math.round(capEj/capRows.length*100) : 0;
+
+      document.getElementById('cap-ej').textContent = capEj;
+      document.getElementById('cap-pend').textContent = capPend;
+      document.getElementById('cap-horas').textContent = capHoras + ' h';
+      document.getElementById('cap-eval').textContent = capEval;
+      document.getElementById('cap-pct').textContent = capPct + '%';
+      document.getElementById('cap-bar').style.width = capPct + '%';
+
+      data.capTemas = capRows.slice(0,8).map(r=>String(r[1]).substring(0,22));
+      data.capCob = capRows.slice(0,8).map(r=>{
+        const cob = safeNum(r[9]);
+        return cob <= 1 ? Math.round(cob*100) : Math.round(cob);
+      });
+
+      // Update table
+      const tbody = document.querySelector('#tbl-cap tbody');
+      tbody.innerHTML = capRows.map(r=>{
+        const est = String(r[11]).trim();
+        const pill = est==='Ejecutada'?'green':est==='Pendiente'?'amber':'gray';
+        return `<tr><td>${String(r[1]).substring(0,28)}</td><td>${r[5]}</td><td>${r[9]?Math.round(safeNum(r[9])<=1?safeNum(r[9])*100:safeNum(r[9]))+'%':'—'}</td><td><span class="pill ${pill}">${est||'—'}</span></td></tr>`;
+      }).join('');
+    }
+
+    // ── INSPECCIONES ──
+    const ins = getSheetData(wb, 'Inspecciones');
+    const insRows = ins.slice(3).filter(r => r[1]);
+    if (insRows.length) {
+      const insTot = insRows.length;
+      const insHall = insRows.reduce((s,r)=>s+safeNum(r[5]),0);
+      const insCerr = insRows.filter(r=>String(r[10]).trim()==='Cerrada').length;
+      const insPct = insTot ? Math.round(insCerr/insTot*100) : 0;
+
+      document.getElementById('ins-total').textContent = insTot;
+      document.getElementById('ins-hall').textContent = insHall;
+      document.getElementById('ins-cerr').textContent = insCerr;
+      document.getElementById('ins-pct').textContent = insPct + '%';
+
+      data.inspAreas = insRows.map(r=>String(r[2]).substring(0,10));
+      data.inspAlto = insRows.map(r=>String(r[6]).includes('Alto')?safeNum(r[5]):0);
+      data.inspMedio = insRows.map(r=>String(r[6]).includes('Medio')?safeNum(r[5]):0);
+      data.inspBajo = insRows.map(r=>String(r[6]).includes('Bajo')?safeNum(r[5]):0);
+
+      const tbody = document.querySelector('#tbl-insp tbody');
+      tbody.innerHTML = insRows.map(r=>{
+        const riesgo = String(r[6]).trim();
+        const estado = String(r[10]).trim();
+        const rp = riesgo.includes('Alto')?'red':riesgo.includes('Medio')?'amber':'green';
+        const ep = estado==='Cerrada'?'green':estado==='Abierta'?'red':'amber';
+        return `<tr><td>${r[2]}</td><td>${r[3]}</td><td>${r[5]}</td><td><span class="pill ${rp}">${riesgo}</span></td><td><span class="pill ${ep}">${estado}</span></td></tr>`;
+      }).join('');
+    }
+
+  } catch(e) {
+    console.error('Error procesando Excel:', e);
+  }
+
+  // Reinit all charts with new data
+  initCharts(data);
+
+  // Update semáforo
+  updateSemaforo(data);
+
+  document.getElementById('last-updated').textContent =
+    'Datos cargados desde Excel — ' + new Date().toLocaleString('es-CO');
+  document.getElementById('upload-banner').classList.add('hidden');
+}
+
+function updateSemaforo(d) {
+  const IF_ = safeNum(document.getElementById('kpi-if').textContent);
+  const ausTotal = safeNum(document.getElementById('kpi-aus-total').textContent);
+  const legPct = parseFloat(document.getElementById('leg-pct').textContent);
+  const planPct = parseFloat(document.getElementById('plan-pct').textContent);
+  const capPct = parseFloat(document.getElementById('cap-pct').textContent);
+  const insPct = parseFloat(document.getElementById('ins-pct').textContent);
+
+  const sem = document.getElementById('semaforo').children;
+  function setSem(el, val, greenMax, amberMax, valStr) {
+    const cls = val<=greenMax?'green':val<=amberMax?'amber':'red';
+    el.className = 'sem ' + cls;
+    el.querySelector('.sem-dot').style.background = cls==='green'?'#639922':cls==='amber'?'#EF9F27':'#E24B4A';
+    if(valStr) el.querySelector('.sem-val').textContent = valStr;
+  }
+  setSem(sem[0], IF_, 20, 35, `IF: ${IF_}`);
+  setSem(sem[1], ausTotal, 8, 15, `${ausTotal} días`);
+  // For percentages, higher is better (inverted)
+  const legC = 100-legPct; setSem(sem[2], legC, 20, 40, `${legPct}%`);
+  const planC = 100-planPct; setSem(sem[3], planC, 20, 50, `${planPct}%`);
+  const capC = 100-capPct; setSem(sem[4], capC, 20, 50, `${capPct}%`);
+  const insC = 100-insPct; setSem(sem[5], insC, 20, 50, `${insPct}% cierre`);
+}
+
+// ──────────────────────────────────────────────
+// FILE UPLOAD HANDLING
+// ──────────────────────────────────────────────
+function readExcel(file) {
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    const wb = XLSX.read(e.target.result, { type:'array', cellDates:true });
+    processExcel(wb);
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+document.getElementById('file-input').addEventListener('change', function(e) {
+  if (e.target.files[0]) readExcel(e.target.files[0]);
+});
+
+// Drag & drop
+const dropZone = document.getElementById('drop-zone');
+document.body.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.remove('hidden'); dropZone.classList.add('drag-over'); });
+document.body.addEventListener('dragleave', e => { if(!e.relatedTarget) { dropZone.classList.add('hidden'); dropZone.classList.remove('drag-over'); } });
+document.body.addEventListener('drop', e => {
+  e.preventDefault();
+  dropZone.classList.add('hidden');
+  dropZone.classList.remove('drag-over');
+  if (e.dataTransfer.files[0]) readExcel(e.dataTransfer.files[0]);
+});
+dropZone.addEventListener('click', () => document.getElementById('file-input').click());
+</script>
+</body>
+</html>
